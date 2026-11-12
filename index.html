@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#f6f6f6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content=".log">
+<title>.log — app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Sustituto provisorio de Ufficio Mono (igual que en la web) -->
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f6f6;
+    --line:#9a9a9a;
+    --blue:#0033ff;
+    --mono:"Ufficio Mono","JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;font-family:var(--mono);background:var(--bg);overscroll-behavior:none}
+
+  /* en el celular la app ocupa toda la pantalla */
+  #app{position:fixed;inset:0;background:var(--bg);overflow:hidden}
+
+  /* en la compu se muestra dentro de un teléfono de 430 × 932 */
+  body.desk{background:#d9d9d9}
+  body.desk #app{inset:auto;left:50%;top:50%;width:430px;height:932px;
+    transform:translate(-50%,-50%) scale(var(--k,1));border-radius:56px;
+    box-shadow:0 0 0 10px #111,0 30px 80px rgba(0,0,0,.25)}
+
+  .screen{position:absolute;inset:0;display:none;background:var(--bg)}
+  .screen.on{display:block}
+  svg{display:block;width:100%;height:100%}
+
+  .grid line{stroke:var(--line);stroke-width:.6;vector-effect:non-scaling-stroke}
+
+  /* módulos de la grilla: se prenden y se apagan de golpe, sin fundidos (como en la web) */
+  .mod{fill:var(--blue);opacity:0;animation:mod .9s linear forwards}
+  @keyframes mod{0%,99.9%{opacity:1}100%{opacity:0}}
+
+  .logo .pz{fill:var(--blue)}
+  .logo .tx rect{fill:#fff}
+  .logo .tx text{font-family:var(--mono);font-weight:300;font-size:50px;fill:#fff;letter-spacing:.04em}
+  .logo.anim .pz,.logo.anim .tx{opacity:0;animation:pz .01s linear forwards}
+  @keyframes pz{from,to{opacity:1}}
+
+  /* botón comenzar: un módulo ancho de la grilla, azul con letra blanca */
+  .btn{cursor:pointer}
+  .btn polygon{fill:var(--blue)}
+  .btn text{font-family:var(--mono);font-weight:500;font-size:18px;fill:#fff;letter-spacing:.06em;pointer-events:none}
+  .btn:active polygon{fill:#0028cc}
+  .btn:focus{outline:none}
+  .btn.anim{opacity:0;animation:pz .01s linear forwards}
+
+  /* ---------- lugares ---------- */
+  #lugares,#guardados{overflow-y:auto;overflow-x:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #lugares::-webkit-scrollbar,#guardados::-webkit-scrollbar{display:none}
+  #lugares svg,#guardados svg{height:auto}
+  .lugar{cursor:pointer}
+  .lugar text{font-family:var(--mono);font-weight:600;font-size:14px;fill:#085cf0}
+  /* hover (o toque en el celu): la foto pasa a color, de golpe como el resto */
+  .lugar .color{opacity:0}
+  .lugar:hover .color,.lugar:active .color,.lugar:focus-visible .color{opacity:1}
+  .lugar:focus{outline:none}
+  .lugar.con-ficha{cursor:pointer}
+  .lugar .fecha{font-weight:400;font-size:12px}
+  /* flecha: cuadrado azul con el < blanco */
+  .flecha{cursor:pointer}
+  .flecha rect{fill:#085cf0}
+  .flecha path{fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:square;stroke-linejoin:miter}
+  .flecha:active rect{fill:#0040b8}
+  .flecha:focus{outline:none}
+
+  /* filtros: módulos de la fila 1 de la grilla, como el menú de la web */
+  .chips .bg{fill:#f0f0f0}
+  .chip{cursor:pointer}
+  .chip polygon{fill:#f0f0f0;stroke:none}
+  .chip text{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:15px;fill:#848484;pointer-events:none}
+  .chip:hover polygon,.chip:focus-visible polygon{stroke:#222;stroke-width:1}
+  .chip.on polygon{fill:#085cf0;stroke:none}
+  .chip.on text{fill:#fff}
+  .chip:focus{outline:none}
+
+  /* ---------- ficha de un lugar ---------- */
+  #ficha{overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+  #ficha::-webkit-scrollbar{display:none}
+  #ficha-svg{position:absolute;left:0;top:0;width:100%;height:auto}
+  .fc{position:relative;width:430px;margin-left:var(--ox,0px);min-height:932px;padding:69px 0 130px}
+  .fc-img{display:block;width:394px;height:186px;margin-left:18px;border-radius:12px;object-fit:cover}
+  .fc h1{margin:16px 24px 0;font:400 21px/25px var(--mono);letter-spacing:.05em;color:#085cf0}
+  .fc h2{margin:6px 24px 0;font:400 16px/20px var(--mono);letter-spacing:.05em;color:#085cf0}
+  .fc-fecha{margin:3px 24px 0;font:400 11px/15px var(--mono);color:#6195f2}
+  .fc-texto{margin:44px 26px 0 24px;font:400 16px/20px var(--mono);letter-spacing:.05em;color:#000}
+  .fc-texto p+p{margin-top:20px}
+  .fc-btn{display:block;width:362px;height:55px;margin:29px 0 0 28px;border:0;border-radius:12px;background:#085cf0;color:#fff;
+    font:700 16px "Helvetica Neue",Helvetica,Arial,sans-serif;letter-spacing:-.01em;text-transform:uppercase;cursor:pointer}
+  .fc-btn:active{background:#0040b8}
+
+  /* ---------- recorrido: mapa interactivo del parque (lógica tipo Google Maps) ---------- */
+  #recorrido{background:#f6f6f6;overflow:hidden}
+  #rc-svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+  #rc-svg.arrastra{cursor:grabbing}
+  #rc-svg .mz{fill:none;stroke:#9a9a9a;stroke-width:.8;vector-effect:non-scaling-stroke}
+  #rc-svg .pq{fill:#fff;stroke:#9a9a9a;stroke-width:.8;vector-effect:non-scaling-stroke}
+  #rc-svg .ed{fill:#ececec;stroke:#9a9a9a;stroke-width:.8;vector-effect:non-scaling-stroke}
+  #rc-svg .cam{fill:none;stroke:#085cf0;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+  #rc-svg .ruta{fill:none;stroke:#011b7f;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 9;vector-effect:non-scaling-stroke}
+  #rc-svg .halo{fill:#a1c1f9;fill-opacity:.35;stroke:#085cf0;stroke-opacity:.35;stroke-width:1;vector-effect:non-scaling-stroke}
+  #rc-svg .calle{font:400 9px var(--mono);fill:#8a8a8a;letter-spacing:.06em}
+  #rc-svg .yo circle.punto{fill:#085cf0;stroke:#fff;stroke-width:3}
+  #rc-svg .yo.sim{cursor:move}
+  #rc-svg .pv rect{fill:#fff;stroke:#085cf0;stroke-width:2.5}
+  #rc-svg .pv text{font:600 11px var(--mono);fill:#085cf0}
+  #rc-svg .pv.rec rect{fill:#085cf0}
+  #rc-svg .pv{animation:aparece-pv .35s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes aparece-pv{from{transform:scale(0)}to{transform:scale(1)}}
+  #rc-svg .pv{transform-box:fill-box;transform-origin:center}
+  .rc-cab{position:absolute;left:0;right:0;top:0;padding:64px calc(var(--ox,0px) + 24px) 14px;pointer-events:none;
+    background:linear-gradient(#f6f6f6 75%,rgba(246,246,246,0))}
+  .rc-cab h1{font:400 21px/25px var(--mono);letter-spacing:.05em;color:#085cf0}
+  .rc-cab h2{margin-top:4px;font:400 16px/20px var(--mono);letter-spacing:.05em;color:#085cf0}
+  #rc-fuente{margin-top:6px;font:400 11px/15px var(--mono);color:#6195f2}
+  #rc-centrar{position:absolute;right:calc(var(--ox,0px) + 16px);top:76px;width:44px;height:44px;border:1px solid #085cf0;border-radius:50%;
+    background:#fff;display:grid;place-items:center;cursor:pointer;z-index:2}
+  #rc-centrar svg{width:22px;height:22px;fill:none;stroke:#085cf0;stroke-width:2;stroke-linecap:round}
+  #rc-card{position:absolute;left:calc(var(--ox,0px) + 16px);width:398px;max-width:calc(100% - 32px);bottom:88px;z-index:2;
+    background:#fff;border:1px solid #085cf0;padding:12px 14px;font:400 13px/18px var(--mono);color:#000}
+  #rc-card b{display:block;font-weight:600;color:#085cf0}
+  #rc-card .dist{color:#6195f2}
+  #rc-card button{margin-top:10px;width:100%;height:42px;border:0;border-radius:10px;background:#085cf0;color:#fff;
+    font:700 14px "Helvetica Neue",Helvetica,Arial,sans-serif;text-transform:uppercase;cursor:pointer}
+
+  /* barra de estado del teléfono: solo en la compu (en el celu ya está la del sistema) */
+  #estado{display:none;position:absolute;left:0;right:0;top:0;height:54px;z-index:9;pointer-events:none;
+    font:600 17px -apple-system,"SF Pro Text","Helvetica Neue",Arial,sans-serif;color:#000}
+  body.desk #estado{display:block}
+  #estado .hora{position:absolute;left:28px;top:20px;letter-spacing:-.01em}
+  #estado svg{position:absolute;top:24px;fill:#000;width:auto;height:auto}
+
+  /* ---------- mapa 3D (el de la web, adaptado al celu) ---------- */
+  #mapa{background:#fff}
+  #mapa-canvas{position:absolute;inset:0}
+  #mapa-canvas canvas{display:block;touch-action:none}
+  #mapa-etiquetas{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .mp-etq{position:absolute;left:0;top:0;pointer-events:auto;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:6px 9px;background:#085cf0;color:#fff;border:0;font:500 10px var(--mono);text-transform:uppercase;text-align:left;cursor:pointer;white-space:nowrap}
+  .mp-etq span{font-weight:400;font-size:9px;text-transform:none;opacity:.8}
+  .mp-etq:active{background:#011b7f}
+  .mp-pin{background:#ff4684;cursor:default}
+  .mp-pin i{font-style:normal;opacity:.8}
+  .mp-panel{position:absolute;left:calc(var(--ox,0px) + 16px);width:398px;max-width:calc(100% - 32px);top:53px;background:#fff;border:1px solid #085cf0;font-family:var(--mono);z-index:3}
+  #mapa-buscar{display:flex}
+  #mapa-buscar input{flex:1;min-width:0;border:0;padding:12px;font:14px var(--mono);outline:none;background:#fff;border-radius:0}
+  #mapa-buscar button{border:0;background:#085cf0;color:#fff;padding:0 16px;font:500 13px var(--mono);text-transform:uppercase;cursor:pointer}
+  #mapa-msg{font-size:11px;color:#555;border-top:1px solid #d9d9d9;padding:7px 12px}
+  #mapa-msg:empty{display:none}
+  #mapa-msg i{font-style:normal;color:#999}
+  #mapa-tip{position:absolute;pointer-events:none;padding:3px 7px;background:#fff;border:1px solid #9a9a9a;font:11px var(--mono);color:#333;white-space:nowrap}
+  #mapa-cargando{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:13px var(--mono);color:#085cf0;text-transform:uppercase}
+  .mp-cred{position:absolute;right:calc(var(--ox,0px) + 18px);bottom:84px;font:9px var(--mono);color:#999}
+
+  /* barra de abajo */
+  #tabbar{position:absolute;left:calc(var(--ox,0px) + 16px);width:403px;height:105px;top:calc(100% - 73px);
+    background:#fff;border-radius:16px;box-shadow:0 -2px 18px rgba(0,0,0,.08);display:none;z-index:5}
+  body.r-lugares #tabbar{display:block}
+  #tabbar button{position:absolute;top:14px;width:48px;height:48px;border:0;background:none;border-radius:50%;
+    display:grid;place-items:center;cursor:pointer;color:#757575}
+  #tabbar button svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  /* sección actual y hover: círculo celeste con el ícono azul */
+  #tabbar button.on,#tabbar button:hover{background:#a1c1f9;color:#085cf0}
+  #tabbar button:focus{outline:none}
+
+  /* la pantalla nueva sube desde abajo y se superpone (como en la web) */
+  .screen.entra{z-index:3}
+  /* la foto gira sobre su propio centro */
+  .foto{transform-box:fill-box;transform-origin:50% 50%}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="estado" aria-hidden="true">
+    <span class="hora">9:41</span>
+    <svg style="left:340px" width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx=".8"/><rect x="5" y="5.5" width="3" height="6.5" rx=".8"/><rect x="10" y="3" width="3" height="9" rx=".8"/><rect x="15" y="0" width="3" height="12" rx=".8"/></svg>
+    <svg style="left:364px" width="17" height="12" viewBox="0 0 17 12"><path d="M8.5 2.2c2.4 0 4.6.9 6.3 2.5l1.2-1.2C14 1.5 11.4.5 8.5.5S3 1.5 1 3.5l1.2 1.2C3.9 3.1 6.1 2.2 8.5 2.2zm0 3.4c1.5 0 2.9.6 4 1.6l1.2-1.2c-1.4-1.3-3.2-2.1-5.2-2.1s-3.8.8-5.2 2.1l1.2 1.2c1.1-1 2.5-1.6 4-1.6zm0 3.4c.6 0 1.2.2 1.6.6L8.5 11.3 6.9 9.6c.4-.4 1-.6 1.6-.6z"/></svg>
+    <svg style="left:387px" width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="22" height="12" rx="3.5" fill="none" stroke="#000" opacity=".4"/><rect x="2" y="2" width="19" height="9" rx="2"/><path d="M24 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" opacity=".4"/></svg>
+  </div>
+  <section class="screen on" id="inicio" aria-label="Inicio">
+    <svg id="hero" aria-hidden="false"></svg>
+  </section>
+  <section class="screen" id="lugares" aria-label="Lugares">
+    <svg id="lugares-svg"></svg>
+  </section>
+  <section class="screen" id="guardados" aria-label="Guardados">
+    <svg id="guardados-svg"></svg>
+  </section>
+  <section class="screen" id="ficha" aria-label="Parque Las Heras">
+    <article class="fc">
+      <img class="fc-img" src="img/ficha-parque-las-heras.png" alt="Parque Las Heras hoy">
+      <h1>Parque Las Heras</h1>
+      <h2>Penitenciaría Nacional</h2>
+      <p class="fc-fecha">[1877–1962]</p>
+      <div class="fc-texto">
+        <p>Donde hoy se encuentra el Parque Las Heras, funcionó la Penitenciaría Nacional entre 1877 y 1962.</p>
+        <p>Fue una de las cárceles más importantes de Buenos Aires, diseñada bajo un sistema de vigilancia y aislamiento.</p>
+        <p>Tras su demolición, el terreno se transformó progresivamente en un espacio verde público.</p>
+        <p>Hoy, donde antes había muros y encierro, hay caminos, árboles y lugares de encuentro.</p>
+        <p>Recorré el parque y descubrí las huellas de su pasado.</p>
+      </div>
+      <button class="fc-btn" type="button" id="iniciar">Iniciar recorrido</button>
+    </article>
+  </section>
+  <section class="screen" id="recorrido" aria-label="Recorrido por el Parque Las Heras">
+    <svg id="rc-svg" aria-label="Mapa del Parque Las Heras"></svg>
+    <div class="rc-cab">
+      <h1>Parque Las Heras</h1>
+      <h2>Recorrido</h2>
+      <p id="rc-fuente"></p>
+    </div>
+    <button id="rc-centrar" type="button" aria-label="Volver a mi ubicación"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+    <div id="rc-card" aria-live="polite"></div>
+  </section>
+  <section class="screen" id="mapa" aria-label="Mapa">
+    <div id="mapa-canvas"><div id="mapa-cargando">cargando mapa…</div></div>
+    <div id="mapa-etiquetas"></div>
+    <div id="mapa-tip" hidden></div>
+    <div class="mp-panel">
+      <form id="mapa-buscar" autocomplete="off"><input name="q" placeholder="Callao 1200 · Corrientes y Callao" aria-label="Buscar una dirección"><button>Ir</button></form>
+      <div id="mapa-msg"></div>
+    </div>
+    <div class="mp-cred">calles © OpenStreetMap · alturas ilustrativas</div>
+  </section>
+  <nav id="tabbar" aria-label="Secciones">
+    <button style="left:58px" aria-label="Inicio" data-go="inicio"><svg viewBox="0 0 24 24"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11h13V9"/></svg></button>
+    <button style="left:134px" aria-label="Mapa" data-go="mapa"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.3"/></svg></button>
+    <button style="left:219px" aria-label="Guardados" data-go="guardados"><svg viewBox="0 0 24 24"><path d="M6.5 3.5h11v17L12 16.5l-5.5 4z"/></svg></button>
+    <button style="left:305px" aria-label="Perfil"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/></svg></button>
+  </nav>
+</div>
+
+<script>
+(() => {
+  /* ---------- grilla: misma geometría que la web ---------- */
+  const ROW = 84, P = 328, A = 116, D = 50, JUMP = 112;
+  const FW = 430, FH = 932;             // frame de Figma (iPhone 16/17 Pro)
+
+  // x de una "/" en el borde superior de la fila r (relativo a CX)
+  function phase(r){
+    let s = 0;
+    for (let n = 1; n <= r; n++) s -= D + (n % 4 === 0 ? JUMP : 0);
+    return s;
+  }
+  // CX ubica la grilla para que haya una "/" en x = 113 de la fila 4, donde arranca el logo del frame
+  const LX = 113, LY = 4*ROW - 2, LS = 0.7;      // posición y escala del logo en el frame
+  const CX = (((LX - phase(4)) % P) + P) % P;
+  function diagonals(r, xmin, xmax){
+    const out = [], s = CX + phase(r);
+    const k0 = Math.floor((xmin - s - P)/P), k1 = Math.ceil((xmax - s + P)/P);
+    for (let k = k0; k <= k1; k++){
+      const xs = s + k*P, xb = xs + A;
+      out.push({top:xs, bot:xs - D, kind:"/"});
+      out.push({top:xb, bot:xb + D, kind:"\\"});
+    }
+    return out.sort((a,b) => a.top - b.top);
+  }
+
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, a, p) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const pts = p => p.map(q => q.join(",")).join(" ");
+  const svg = document.getElementById("hero");
+
+  // piezas del logo (proporciones de la web): dos módulos + la pieza que baja
+  const shapes = [
+    [[0,0],[A,0],[A+D,ROW],[-D,ROW]],
+    [[A,0],[P,0],[P-D,ROW],[A+D,ROW]],
+    [[-D,ROW],[-D+119,ROW],[-D+179,ROW+115],[-D+110,ROW+218]]
+  ];
+
+  let t0 = null;
+  function draw(){
+    const app = document.getElementById("app");
+    const vw = app.clientWidth, vh = app.clientHeight;
+    const ox = Math.round((vw - FW)/2);          // el frame queda centrado si la pantalla es más ancha o más angosta
+    svg.setAttribute("viewBox", `${-ox} 0 ${vw} ${vh}`);
+    svg.innerHTML = "";
+    const xmin = -ox - P, xmax = vw - ox + P;
+    const nRows = Math.ceil(vh/ROW) + 1;
+
+    const mods = el("g", {}, svg);
+    const grid = el("g", {class:"grid"}, svg);
+    for (let r = 0; r <= nRows; r++) el("line", {x1:xmin, y1:r*ROW, x2:xmax, y2:r*ROW}, grid);
+    for (let r = 0; r < nRows; r++)
+      diagonals(r, xmin, xmax).forEach(d => el("line", {x1:d.top, y1:r*ROW, x2:d.bot, y2:(r+1)*ROW}, grid));
+
+    // transición: módulos de la grilla que se encienden de afuera hacia el logo
+    if (t0 === null) t0 = performance.now();
+    const off = (performance.now() - t0)/1000;
+    const animate = off < 6.5 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const lcx = LX + A*LS, lcy = LY + ROW*LS;
+    if (animate){
+      const cells = [];
+      for (let r = 0; r < nRows; r++){
+        const dd = diagonals(r, xmin, xmax);
+        for (let i = 0; i < dd.length - 1; i++){
+          const a = dd[i], b = dd[i+1];
+          const mx = (a.top+b.top+a.bot+b.bot)/4, my = r*ROW + ROW/2;
+          if (mx < -ox - 60 || mx > vw - ox + 60) continue;
+          cells.push({p:[[a.top,r*ROW],[b.top,r*ROW],[b.bot,(r+1)*ROW],[a.bot,(r+1)*ROW]], d:Math.hypot(mx-lcx, (my-lcy)*1.6)});
+        }
+      }
+      const maxD = Math.max(...cells.map(c => c.d));
+      cells.forEach((c, i) => {
+        const rnd = (Math.sin(i*91.7)*43758.5453) % 1;
+        if (Math.abs(rnd) > 0.55) return;                        // no todos: algunos módulos
+        const t = (1 - c.d/maxD)*3.8 + Math.abs(rnd)*0.6;
+        el("polygon", {class:"mod", points:pts(c.p), style:`animation-delay:${(t - off).toFixed(2)}s`}, mods);
+      });
+    }
+
+    // logo: aparece por partes (A, la pieza que baja, B y el texto)
+    const logo = el("g", {class:"logo" + (animate ? " anim" : ""), transform:`translate(${LX},${LY}) scale(${LS})`,
+                          role:"img", "aria-label":".log"}, svg);
+    [[shapes[0],4.6],[shapes[2],5.1],[shapes[1],5.6]].forEach(([p,t]) =>
+      el("polygon", {class:"pz", points:pts(p), style:`animation-delay:${(t - off).toFixed(2)}s`}, logo));
+    const tx = el("g", {class:"tx", style:`animation-delay:${(6.1 - off).toFixed(2)}s`}, logo);
+    el("rect", {x:167, y:ROW/2 - 5, width:9, height:9}, tx);
+    const t = el("text", {x:194, y:ROW/2 + 1, "dominant-baseline":"central"}, tx); t.textContent = "LOG";
+
+    // botón COMENZAR: el módulo ancho más centrado de una fila baja; aparece cuando el logo ya está armado
+    const R = Math.max(7, Math.min(9, Math.floor(vh/ROW) - 2));
+    const dd = diagonals(R, xmin, xmax);
+    let best = null;
+    for (let i = 0; i < dd.length - 1; i++){
+      const a = dd[i], b = dd[i+1];
+      if (a.kind !== "\\") continue;                       // ancho: entre "\" y "/"
+      const mx = (a.top + b.top + a.bot + b.bot)/4;
+      if (!best || Math.abs(mx - FW/2) < Math.abs(best.mx - FW/2)) best = {a, b, mx};
+    }
+    const y0 = R*ROW, y1 = y0 + ROW;
+    const btn = el("g", {class:"btn" + (animate ? " anim" : ""), role:"button", tabindex:"0", "aria-label":"Comenzar",
+                         style:`animation-delay:${(6.5 - off).toFixed(2)}s`}, svg);
+    el("polygon", {points:pts([[best.a.top,y0],[best.b.top,y0],[best.b.bot,y1],[best.a.bot,y1]])}, btn);
+    const bt = el("text", {x:best.mx, y:y0 + ROW/2 + 1, "text-anchor":"middle", "dominant-baseline":"central"}, btn);
+    bt.textContent = "COMENZAR";
+    btn.addEventListener("click", comenzar);
+    btn.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") comenzar(); });
+  }
+
+  /* ---------- LUGARES: la misma grilla, más chica (filas de 53) ---------- */
+  const G2 = {ROW:53, P:207, A:76, D:35, J:73, S0:60};    // medido sobre el frame
+  function diag2(r, xmin, xmax){
+    let s = G2.S0;
+    for (let n = 1; n <= r; n++) s -= G2.D + (n % 4 === 0 ? G2.J : 0);
+    const out = [];
+    const k0 = Math.floor((xmin - s - G2.P)/G2.P), k1 = Math.ceil((xmax - s + G2.P)/G2.P);
+    for (let k = k0; k <= k1; k++){
+      out.push({top:s + k*G2.P, bot:s + k*G2.P - G2.D});
+      out.push({top:s + k*G2.P + G2.A, bot:s + k*G2.P + G2.A + G2.D});
+    }
+    return out;
+  }
+  // fotos y nombres en la posición del frame (las fotos ya vienen recortadas con la forma de la grilla)
+  const PANTALLAS = {
+    // LUGARES: fotos en blanco y negro; con el hover pasan a color
+    lugares: {hover:true, items:[
+      {nombre:"Obelisco",         img:"img/obelisco.png",         x:156, y:265, w:277, h:107, tx:244, ty:376},
+      {nombre:"Plaza San Martín", img:"img/plaza-san-martin.png", x:-1,  y:424, w:262, h:107, tx:24,  ty:540},
+      {nombre:"Parque Las Heras", img:"img/parque-las-heras.png", x:148, y:689, w:277, h:107, tx:181, ty:804}
+    ]},
+    // GUARDADOS: fotos en color, fechas y flecha; con la flecha la foto gira y muestra lo que había antes
+    guardados: {hover:false, items:[
+      {nombre:"Obelisco",         img:"img/obelisco-color.png",          x:156, y:265, w:277, h:107, tx:243, ty:382,
+       fecha:"[ 1936 - hoy ]", fx:229, fy:399, flecha:[200,391],
+       antes:{nombre:"Iglesia San Nicolás de Bari", img:"img/iglesia-san-nicolas.png", x:158, y:265, w:272, h:107, tx:151, ty:377,
+              fecha:"[ 1733 - 1931 ]", fx:190, fy:397, flecha:[336,400], lado:">"}},
+      {nombre:"Plaza San Martín", img:"img/plaza-san-martin-color-b.png", x:0,   y:530, w:206, h:107, tx:4,   ty:645,
+       fecha:"[ 1862 - hoy ]", fx:14,  fy:662},
+      {nombre:"Parque Las Heras", img:"img/parque-las-heras-color.png",   x:150, y:689, w:277, h:107, tx:181, ty:804,
+       fecha:"[ 1980 - hoy ]", fx:195, fy:819, flecha:[153,809], ficha:"ficha",
+       antes:{nombre:"Pabellón Argentino", img:"img/pabellon-argentino.png", x:151, y:688, w:276, h:107, tx:181, ty:804,
+              fecha:"[ 1894 - 1933 ]", fx:201, fy:820, flecha:[339,811], lado:">"}}
+    ]}
+  };
+  // por ahora los filtros se marcan pero no filtran: falta definir qué lugar va en cada categoría
+  const FILTROS = ["Todos", "Parques", "Edificios", "Espacios"];
+  let filtro = "Todos";
+  /* ---------- la foto gira (como la referencia w-w-w.ar): se pone de canto, cambia y vuelve ---------- */
+  let girando = false;
+  function girar(item, g, conf){
+    if (girando) return;
+    girando = true;
+    const foto = g.querySelector(".foto"), textos = g.querySelector(".textos");
+    // misma velocidad que la referencia: giro constante de 90° en 1,5 s (el ancho sigue el coseno del ángulo)
+    const giro = (de, a) => Array.from({length:19}, (_, i) => {
+      const ang = (de + (a - de)*i/18) * Math.PI/180;
+      return {transform:`scaleX(${Math.max(0, Math.cos(ang)).toFixed(4)})`};
+    });
+    const opt1 = {duration:1500, easing:"linear", fill:"forwards"};
+    const opt2 = {duration:1500, easing:"linear"};
+    foto.animate(giro(0, 90), opt1).onfinish = () => {
+      item.estado = item.estado === "antes" ? "hoy" : "antes";
+      pintarItem(item, g, conf);                         // a mitad del giro cambian la foto y el texto
+      const nueva = g.querySelector(".foto");
+      nueva.animate(giro(-90, 0), opt2).onfinish = () => { girando = false; };
+    };
+  }
+
+  function pintarItem(item, g, conf){
+    const l = item.estado === "antes" ? item.antes : item;
+    g.innerHTML = "";
+    g.classList.toggle("con-ficha", !!l.ficha);
+    g.onclick = l.ficha ? (e => { if (!e.target.closest(".flecha")) ir(l.ficha, true); }) : null;
+    g.setAttribute("aria-label", l.nombre);
+    const foto = el("g", {class:"foto"}, g);
+    el("image", {href:l.img, x:l.x, y:l.y, width:l.w, height:l.h}, foto);
+    if (conf.hover) el("image", {class:"color", href:l.img.replace(".png", "-color.png"), x:l.x, y:l.y, width:l.w, height:l.h}, foto);
+    const textos = el("g", {class:"textos"}, g);
+    const t = el("text", {x:l.tx, y:l.ty + 9, "dominant-baseline":"central"}, textos);
+    t.textContent = l.nombre;
+    if (l.fecha){
+      const f = el("text", {class:"fecha", x:l.fx, y:l.fy + 7.5, "dominant-baseline":"central"}, textos);
+      f.textContent = l.fecha;
+    }
+    if (l.flecha){
+      const [ax, ay] = l.flecha;
+      const b = el("g", {class:"flecha", role:"button", tabindex:"0", "aria-label": l.lado === ">" ? "Ver cómo es hoy" : "Ver qué había antes"}, textos);
+      el("rect", {x:ax, y:ay, width:21, height:18, rx:1.5}, b);
+      const d = l.lado === ">" ? `M${ax+8} ${ay+3.5} L${ax+14.5} ${ay+9} L${ax+8} ${ay+14.5}`
+                               : `M${ax+13} ${ay+3.5} L${ax+6.5} ${ay+9} L${ax+13} ${ay+14.5}`;
+      el("path", {d}, b);
+      b.addEventListener("click", () => girar(item, g, conf));
+      b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") girar(item, g, conf); });
+    }
+  }
+
+  function drawLista(id){
+    const conf = PANTALLAS[id];
+    const svg2 = document.getElementById(id + "-svg");
+    const app = document.getElementById("app");
+    const vw = app.clientWidth, vh = app.clientHeight;
+    const ox = Math.round((vw - FW)/2);
+    const H = Math.max(vh, FH);
+    svg2.setAttribute("viewBox", `${-ox} 0 ${vw} ${H}`);
+    svg2.setAttribute("height", H);
+    svg2.innerHTML = "";
+    const xmin = -ox - G2.P, xmax = vw - ox + G2.P;
+    const nRows = Math.ceil(H/G2.ROW) + 1;
+    const grid = el("g", {class:"grid"}, svg2);
+    for (let r = 0; r <= nRows; r++) el("line", {x1:xmin, y1:r*G2.ROW, x2:xmax, y2:r*G2.ROW}, grid);
+    for (let r = 0; r < nRows; r++)
+      diag2(r, xmin, xmax).forEach(d => el("line", {x1:d.top, y1:r*G2.ROW, x2:d.bot, y2:(r+1)*G2.ROW}, grid));
+    const items = el("g", {class:"items"}, svg2);
+    conf.items.forEach(item => pintarItem(item, el("g", {class:"lugar"}, items), conf));
+    // filtros en la fila 1: celdas de la grilla entre diagonales
+    const R = 1, y0 = R*G2.ROW, y1 = y0 + G2.ROW;
+    const dd = diag2(R, xmin, xmax).sort((a,b) => a.top - b.top);
+    const i0 = dd.findIndex(d => d.top > 0);                 // primera diagonal dentro del frame ("/" en x≈25)
+    const chips = el("g", {class:"chips"}, svg2);
+    const last = dd[dd.length - 1];
+    el("polygon", {class:"bg", points:pts([[dd[i0].top,y0],[last.top,y0],[last.bot,y1],[dd[i0].bot,y1]])}, chips);
+    FILTROS.forEach((f, k) => {
+      const a = dd[i0 + k], b = dd[i0 + k + 1];
+      const g = el("g", {class:"chip" + (filtro === f ? " on" : ""), role:"button", tabindex:"0", "aria-pressed":String(filtro === f)}, chips);
+      el("polygon", {points:pts([[a.top,y0],[b.top,y0],[b.bot,y1],[a.bot,y1]])}, g);
+      const t = el("text", {x:(a.top+b.top+a.bot+b.bot)/4, y:y0 + G2.ROW/2 - 1, "text-anchor":"middle", "dominant-baseline":"central"}, g);
+      t.textContent = f;
+      const elegir = () => { filtro = f; drawLista(id); };
+      g.addEventListener("click", elegir);
+      g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") elegir(); });
+    });
+    document.documentElement.style.setProperty("--ox", ox + "px");
+  }
+
+  /* ---------- navegación entre pantallas ---------- */
+  let actual = "inicio";
+  const CON_BARRA = ["lugares", "guardados", "mapa", "ficha", "recorrido"];
+  // la ficha se abre desde guardados: queda marcada esa sección; el recorrido es un mapa
+  const TAB_DE = {ficha:"guardados", recorrido:"mapa"};
+  function marcarTab(dest){
+    document.querySelectorAll("#tabbar button").forEach(b => {
+      const on = b.dataset.go === dest;
+      b.classList.toggle("on", on);
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+  }
+  // desde el inicio la pantalla nueva sube y se superpone; entre secciones de la barra el cambio es directo
+  function ir(dest, sube){
+    if (dest === actual) return;
+    const viejo = document.getElementById(actual), nuevo = document.getElementById(dest);
+    const desdeInicio = actual === "inicio" || dest === "inicio" || sube;
+    actual = dest;
+    document.body.classList.toggle("r-lugares", CON_BARRA.includes(dest));
+    if (PANTALLAS[dest]) drawLista(dest);
+    if (dest === "recorrido"){ requestAnimationFrame(() => { pintarRecorrido(); ubicar(); }); }
+
+    marcarTab(TAB_DE[dest] || dest);
+    nuevo.classList.add("on"); nuevo.scrollTop = 0;
+    document.body.classList.toggle("r-mapa", dest === "mapa");
+    if (dest === "mapa") cargarMapa();
+    if (!desdeInicio){ viejo.classList.remove("on"); return; }
+    nuevo.classList.add("entra");
+    const h = document.getElementById("app").clientHeight;
+    const opt = {duration:800, easing:"cubic-bezier(.65,0,.35,1)"};
+    const capas = [nuevo, document.getElementById("tabbar")];
+    capas.forEach(c => c.animate([{transform:`translateY(${h}px)`},{transform:"translateY(0)"}], opt));
+    setTimeout(() => { viejo.classList.remove("on"); nuevo.classList.remove("entra"); }, 800);
+  }
+  function comenzar(){ ir("guardados"); }
+  document.getElementById("iniciar").addEventListener("click", () => ir("recorrido", true));
+
+  /* ---------- RECORRIDO: mapa interactivo del Parque Las Heras ----------
+     Geometría calcada de la imagen de referencia y georreferenciada con las esquinas reales
+     (Av. Las Heras, J. Salguero, Juncal y Av. Cnel. Díaz, de OpenStreetMap). Todo en metros: x este, y norte. */
+  const PQ = {"centro":[-2456.9,2176.1],"caminos":[[[28.7,113.8],[24.1,106.0],[16.9,100.5],[13.1,94.9]],[[-139.4,-107.3],[-143.9,-118.2]],[[-192.8,51.8],[-176.2,55.0],[-165.1,54.7],[-161.1,52.8]],[[51.4,33.4],[51.1,39.6],[46.7,51.1],[36.0,55.6],[19.5,55.5],[6.3,58.8]],[[-93.6,172.2],[-92.0,170.5],[-93.7,163.4]],[[-107.6,35.6],[-110.3,48.8],[-109.5,63.7],[-96.7,111.6],[-93.3,134.5],[-92.8,153.1],[-91.1,160.2]],[[-52.6,-14.2],[-36.7,-20.9]],[[22.3,-186.0],[20.9,-180.5],[16.6,-175.7]],[[0.1,84.9],[3.1,86.0],[7.9,92.3]],[[-208.2,-25.9],[-194.8,-6.1],[-188.9,-4.2]],[[-48.5,149.4],[-49.1,156.5],[-56.2,162.6],[-60.5,163.1]],[[-131.1,-79.5],[-140.6,-74.1],[-157.4,-84.3],[-161.8,-91.0]],[[-140.5,47.1],[-146.1,50.9],[-157.3,54.1]],[[82.5,94.2],[84.4,89.7],[73.7,50.8]],[[0.9,-33.6],[12.0,-47.2],[19.3,-53.1],[33.7,-59.1],[37.2,-57.2],[44.4,-59.6]],[[-30.9,-101.0],[-21.9,-105.9]],[[-130.2,-79.0],[-119.0,-53.3],[-106.7,-33.0],[-94.2,-16.6],[-86.2,-10.8],[-80.4,-9.4],[-66.6,-9.5],[-59.0,-12.2],[-57.0,-10.9]],[[22.7,-138.3],[17.6,-135.5],[-7.8,-111.2],[-18.4,-105.5],[-20.5,-106.7]],[[-140.8,46.2],[-150.8,18.4],[-156.7,15.1],[-161.9,15.7],[-172.3,12.7],[-176.8,13.0]],[[-36.0,-21.2],[-31.8,-18.7],[-2.0,-34.5],[0.2,-33.2]],[[-19.6,106.9],[-22.4,108.1],[-25.8,118.7],[-26.7,127.1],[-24.9,134.5]],[[-60.4,-152.7],[-47.9,-122.0],[-38.6,-110.4],[-34.7,-102.4],[-31.6,-100.7]],[[-189.5,-95.0],[-177.2,-94.3],[-172.1,-89.1]],[[-56.6,-10.0],[-55.9,-3.6],[-58.4,6.6],[-63.6,15.8],[-74.1,20.8],[-88.1,17.6],[-101.2,20.6],[-105.2,23.6],[-107.6,31.3]],[[-137.3,-105.4],[-126.3,-90.7],[-126.3,-84.3],[-130.5,-79.8]],[[-108.9,31.9],[-110.8,30.7],[-117.6,33.9],[-126.4,41.4],[-139.9,46.8]],[[69.1,39.2],[65.5,39.5],[58.0,34.2],[52.1,33.1]],[[51.0,32.4],[46.7,28.2],[37.5,9.4],[38.9,-0.8],[43.0,-6.2],[54.0,-14.9],[56.0,-14.6]],[[-59.4,-156.5],[-62.2,-165.9]],[[-31.2,-99.7],[-23.6,-77.6],[-21.9,-60.2],[-25.2,-44.8],[-29.6,-34.7],[-35.7,-27.1],[-36.4,-22.2]],[[152.7,33.5],[150.0,29.4],[126.6,23.8],[112.3,24.7],[98.8,31.7],[89.2,43.1],[74.0,47.0]],[[-21.6,-107.2],[-21.0,-114.4],[-17.9,-119.5],[2.8,-143.6],[10.6,-157.2],[16.4,-162.8]],[[-30.6,72.2],[-33.4,71.1],[-43.0,73.0],[-74.4,84.3],[-87.4,83.4],[-93.9,77.4],[-100.1,59.4],[-102.8,41.0],[-104.1,37.3],[-107.0,35.4]],[[-6.6,95.8],[2.1,97.0],[8.3,93.3]],[[57.1,-18.7],[67.5,-24.8],[79.1,-42.4],[83.6,-59.2],[86.4,-80.2]],[[40.4,-157.5],[37.7,-157.2],[29.3,-146.6],[24.8,-144.2]],[[-36.9,92.1],[-42.3,105.8],[-37.2,124.4],[-36.3,137.8]],[[12.7,93.9],[30.1,85.7],[46.9,83.7],[63.7,88.0],[71.3,96.0]],[[45.9,-58.0],[60.9,-64.1],[66.1,-78.8],[64.1,-101.9],[55.9,-126.5]],[[-21.4,53.3],[-17.5,21.2],[-12.9,3.2],[-0.4,-21.3],[1.3,-28.0],[0.5,-32.2]],[[6.3,58.8],[0.1,84.9]],[[-19.6,106.9],[-6.6,95.8]],[[-30.6,72.2],[-21.4,53.3]]],"puntos":[[51.1,30.7],[-106.3,27.3],[-53.0,-15.4],[34.2,-58.4],[-32.0,-100.9],[-130.8,-80.5]],"manzanas":[[[-159.0,-219.0],[-38.4,-300.5],[-22.5,-274.1],[-148.6,-190.0]],[[-234.7,-133.0],[-241.2,-162.5],[-167.5,-213.3],[-157.9,-183.9]],[[-276.7,-57.8],[-311.4,-113.4],[-266.6,-145.4],[-245.6,-115.4]],[[31.2,-235.6],[-17.5,-315.7],[42.6,-357.5],[48.1,-349.5],[84.7,-270.5]],[[-289.1,-35.2],[-304.1,-85.2],[-282.0,-48.9]],[[82.7,-149.2],[38.1,-223.4],[90.6,-257.1],[128.2,-176.1],[91.4,-153.9],[91.5,-151.5],[89.8,-153.0]],[[-222.1,30.4],[-236.8,6.7],[-239.1,7.0],[-239.4,2.2],[-246.6,-7.4],[-266.4,-41.2],[-239.7,-91.1],[-215.5,26.0]],[[-244.0,93.8],[-256.7,74.7],[-282.1,-10.2],[-271.5,-31.5],[-217.7,54.1]],[[188.3,26.9],[90.2,-136.1],[134.5,-161.8],[214.9,10.9]],[[-182.8,186.3],[-236.2,105.9],[-207.8,66.3]],[[207.1,58.0],[196.0,39.7],[222.3,25.4],[232.6,51.1],[213.7,58.2]],[[-177.8,210.5],[-212.4,222.5],[-243.7,118.3],[-242.1,115.6]],[[294.1,182.7],[280.3,185.3],[228.4,94.6],[250.6,86.7]],[[174.3,218.0],[127.8,141.8],[123.6,140.7],[125.6,138.7],[122.1,132.3],[203.2,103.6],[256.9,193.6]],[[55.6,253.0],[35.4,218.9],[32.7,218.5],[33.0,214.8],[7.7,172.9],[107.1,137.6],[158.3,222.7]],[[-35.2,278.7],[-78.6,203.6],[-4.3,178.4],[41.0,257.4]],[[-139.6,310.6],[-140.2,308.6],[-56.7,283.9],[-56.1,281.4],[-65.5,253.4],[-68.5,251.0],[-147.7,276.4],[-158.3,231.9],[-89.3,208.5],[-47.9,283.6]]],"parque":[[[-162.4,194.1],[-172.2,150.8],[-157.2,142.4],[-181.2,78.0],[-187.1,79.7],[-193.6,55.2],[-202.1,58.4],[-209.8,28.1],[-206.6,24.4],[-208.3,19.2],[-198.2,14.9],[-198.0,9.8],[-205.7,-20.3],[-209.3,-25.3],[-207.7,-28.2],[-212.6,-43.4],[-225.8,-113.4],[-140.5,-167.2],[-143.8,-178.6],[-139.3,-167.9],[-14.8,-246.4],[5.4,-209.7],[13.2,-201.6],[19.3,-188.9],[24.1,-188.2],[32.3,-168.3],[40.8,-158.8],[38.2,-153.9],[50.9,-127.5],[66.3,-133.2],[62.2,-145.5],[65.6,-148.6],[69.7,-138.7],[73.3,-139.4],[69.8,-133.9],[71.5,-129.9],[61.8,-123.6],[67.5,-109.7],[79.7,-114.8],[79.3,-118.2],[81.3,-115.6],[85.3,-117.6],[89.1,-108.6],[91.9,-108.8],[98.5,-86.2],[88.0,-81.0],[86.9,-74.3],[93.7,-57.9],[99.0,-59.2],[97.4,-56.0],[107.8,-33.4],[115.3,-31.8],[152.6,28.4],[149.7,36.0],[157.6,54.8],[164.8,59.8],[179.0,54.3],[179.3,47.6],[186.1,48.9],[175.9,56.8],[181.2,71.8],[165.1,75.3],[162.8,72.2],[142.0,80.2],[138.6,84.1],[139.6,88.8],[134.7,81.7],[36.4,122.9],[-42.7,150.6],[-45.7,155.2],[-39.7,170.2],[0.9,158.8],[-13.8,167.7],[-16.0,163.8],[-31.7,170.7],[-31.0,175.1],[-32.7,172.2],[-43.8,176.3],[-47.2,172.9],[-50.4,163.8],[-59.5,166.1],[-63.6,158.6],[-90.4,168.8],[-92.3,173.9],[-94.9,170.5]],[[-190.1,331.8],[-322.5,-114.0],[-319.8,-115.9],[-211.2,248.6],[-172.2,236.8],[-169.9,244.4],[-161.8,243.7],[-160.6,247.5],[-162.0,249.1],[-158.7,261.8],[-166.6,265.5],[-160.6,286.9],[-147.3,283.8],[-143.9,294.6],[-147.0,286.9],[-165.5,289.5],[-159.2,312.1],[-156.6,312.4],[-155.7,315.4],[-187.9,324.9],[-186.7,330.8]]],"edificios":[[[-220.5,-83.3],[-225.8,-113.4],[-14.8,-246.4],[2.1,-218.0]],[[-121.4,-122.1],[-123.7,-130.3],[-81.3,-155.6],[-78.7,-148.5]],[[-88.3,-31.7],[-117.4,-110.7],[-115.3,-115.1],[-75.3,-139.5],[-43.7,-54.7]],[[-122.6,123.6],[-144.8,75.6],[-132.8,70.1],[-129.1,81.2],[-136.3,84.5],[-137.2,88.1],[-135.6,92.7],[-132.9,94.7],[-130.5,93.7],[-129.6,90.0],[-125.0,91.2],[-124.1,94.0],[-130.2,96.7],[-130.7,99.1],[-127.7,102.1],[-128.9,104.8],[-126.1,106.8],[-123.7,103.6],[-121.2,104.7],[-115.5,119.6]],[[-143.0,151.4],[-148.1,135.4],[-157.8,138.5],[-163.5,123.0],[-161.7,122.2],[-161.5,119.0],[-151.6,114.6],[-145.9,115.4],[-142.7,108.7],[-143.9,104.9],[-145.7,103.6],[-167.6,114.3],[-170.2,106.1],[-167.6,110.1],[-166.2,106.4],[-162.4,107.8],[-158.7,103.0],[-157.2,105.5],[-153.1,103.7],[-151.1,95.4],[-154.1,92.5],[-172.2,101.8],[-176.6,90.3],[-150.7,78.3],[-146.4,89.1],[-147.0,91.5],[-150.0,90.7],[-149.6,100.0],[-147.8,101.4],[-147.0,97.8],[-144.3,99.8],[-142.5,96.9],[-140.4,101.2],[-143.0,103.5],[-140.3,111.9],[-138.2,112.0],[-137.6,109.6],[-134.9,111.7],[-121.2,142.5]]],"calles":[["AV. LAS HERAS",-11.6,171.5,-20.2],["JUNCAL",-137.7,-189.8,-32.4],["J. SALGUERO",-212.5,33.4,-102.2],["AV. CNEL. DÍAZ",87.4,-133.4,-119.4]]};
+  const RADIO = 70;                       // a menos de 70 m un punto aparece
+  const OBE = {lat:-34.603722, lng:-58.381592}, MLAT = 111320, MLNG = 111320*Math.cos(OBE.lat*Math.PI/180);
+  const rcSvg = document.getElementById("rc-svg");
+  let vista = {x:-45, y:-30, s:1.05};        // centro de la vista (m) y escala (px por metro)
+  let yo = {x:-200, y:-95, acc:0, sim:true}, motivo = "";
+  let mundo, capaRuta, capaPts, capaYo, capaTxt;
+
+  // red de caminos: vértices unidos entre sí y en los cruces
+  const NODOS = [], ADY = [];
+  PQ.caminos.forEach(c => c.forEach((p, i) => {
+    const k = NODOS.push(p) - 1; ADY[k] = [];
+    if (i){ ADY[k].push(k-1); ADY[k-1].push(k); }
+  }));
+  for (let a = 0; a < NODOS.length; a++) for (let b = a + 1; b < NODOS.length; b++)
+    if (Math.hypot(NODOS[a][0]-NODOS[b][0], NODOS[a][1]-NODOS[b][1]) < 9 && !ADY[a].includes(b)){ ADY[a].push(b); ADY[b].push(a); }
+  const masCerca = p => { let m = 0, d = Infinity; NODOS.forEach((q, i) => { const e = Math.hypot(q[0]-p[0], q[1]-p[1]); if (e < d){ d = e; m = i; } }); return m; };
+  function ruta(desde, hasta){
+    const a = masCerca(desde), b = masCerca(hasta), dist = NODOS.map(() => Infinity), prev = [];
+    dist[a] = 0; const abiertos = new Set([a]);
+    while (abiertos.size){
+      let u = -1; abiertos.forEach(n => { if (u < 0 || dist[n] < dist[u]) u = n; }); abiertos.delete(u);
+      if (u === b) break;
+      ADY[u].forEach(v => { const nd = dist[u] + Math.hypot(NODOS[u][0]-NODOS[v][0], NODOS[u][1]-NODOS[v][1]);
+        if (nd < dist[v]){ dist[v] = nd; prev[v] = u; abiertos.add(v); } });
+    }
+    const camino = [hasta]; for (let n = b; n !== undefined; n = prev[n]){ camino.push(NODOS[n]); if (n === a) break; }
+    camino.push(desde);
+    return {pts:camino.reverse(), largo:dist[b] + Math.hypot(...[0,1].map(k => NODOS[a][k]-desde[k])) + Math.hypot(...[0,1].map(k => NODOS[b][k]-hasta[k]))};
+  }
+
+  const aPx = (x, y) => { const r = rcSvg.getBoundingClientRect(); return [r.width/2 + vista.s*(x - vista.x), r.height/2 - vista.s*(y - vista.y)]; };
+  const aM = (px, py) => { const r = rcSvg.getBoundingClientRect(); return [vista.x + (px - r.width/2)/vista.s, vista.y - (py - r.height/2)/vista.s]; };
+  const d2 = (p, q) => Math.hypot(p[0]-q[0], p[1]-q[1]);
+  const poly = (pp, cls, padre) => el("polygon", {class:cls, points:pp.map(p => p.join(",")).join(" ")}, padre);
+  const linea = (pp, cls, padre) => el("polyline", {class:cls, points:pp.map(p => p.join(",")).join(" ")}, padre);
+
+  function armarMapa(){
+    rcSvg.innerHTML = "";
+    mundo = el("g", {}, rcSvg);
+    PQ.manzanas.forEach(p => poly(p, "mz", mundo));
+    PQ.parque.forEach(p => poly(p, "pq", mundo));
+    PQ.edificios.forEach(p => poly(p, "ed", mundo));
+    PQ.caminos.forEach(c => linea(c, "cam", mundo));
+    capaRuta = el("g", {}, mundo);
+    capaTxt = el("g", {}, rcSvg); capaPts = el("g", {}, rcSvg); capaYo = el("g", {}, rcSvg);
+  }
+  let visibles = "";
+  function pintarRecorrido(){
+    if (!mundo) armarMapa();
+    const r = rcSvg.getBoundingClientRect();
+    mundo.setAttribute("transform", `matrix(${vista.s},0,0,${-vista.s},${r.width/2 - vista.s*vista.x},${r.height/2 + vista.s*vista.y})`);
+    // nombres de calles: siempre derechos y del mismo tamaño
+    capaTxt.innerHTML = "";
+    PQ.calles.forEach(([t, x, y, a]) => {
+      const [px, py] = aPx(x, y); let ang = -a; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+      const e = el("text", {class:"calle", x:px, y:py, "text-anchor":"middle", "dominant-baseline":"central", transform:`rotate(${ang} ${px} ${py})`}, capaTxt);
+      e.textContent = t;
+    });
+    // puntos: solo los cercanos; el más cercano es el recomendado
+    const cerca = PQ.puntos.map((p, i) => ({p, i, d:d2(p, [yo.x, yo.y])})).sort((a, b) => a.d - b.d);
+    const enRadio = cerca.filter(c => c.d < RADIO), rec = enRadio[0];
+    const clave = enRadio.map(c => c.i).join(",") + "|" + (rec ? rec.i : "");
+    if (clave !== visibles){ capaPts.innerHTML = ""; visibles = clave;
+      enRadio.forEach(c => { const g = el("g", {class:"pv" + (c === rec ? " rec" : ""), "data-i":c.i}, capaPts);
+        el("rect", {width:16, height:16, x:-8, y:-8}, g); const t = el("text", {x:13, y:1, "dominant-baseline":"central"}, g); t.textContent = c.i + 1; }); }
+    capaPts.querySelectorAll(".pv").forEach(g => { const p = PQ.puntos[+g.dataset.i], [px, py] = aPx(p[0], p[1]);
+      g.firstChild.setAttribute("x", px - 8); g.firstChild.setAttribute("y", py - 8); g.lastChild.setAttribute("x", px + 13); g.lastChild.setAttribute("y", py); });
+    // ruta por los caminos hasta el recomendado
+    capaRuta.innerHTML = "";
+    let rt = null;
+    if (rec){ rt = ruta([yo.x, yo.y], rec.p); linea(rt.pts, "ruta", capaRuta); }
+    // vos
+    capaYo.innerHTML = "";
+    const [yx, yy] = aPx(yo.x, yo.y);
+    const g = el("g", {class:"yo" + (yo.sim ? " sim" : "")}, capaYo);
+    if (yo.acc) el("circle", {class:"halo", cx:yx, cy:yy, r:Math.max(14, yo.acc*vista.s)}, g);
+    else el("circle", {class:"halo", cx:yx, cy:yy, r:18}, g);
+    el("circle", {class:"punto", cx:yx, cy:yy, r:8}, g);
+    // tarjeta
+    const card = document.getElementById("rc-card");
+    if (rec){
+      const m = Math.round(rt.largo/5)*5;
+      card.innerHTML = `<b>Punto de visualización ${rec.i + 1}</b><span class="dist">a ${m} m por el camino marcado</span>` +
+        (enRadio.length > 1 ? `<br>También cerca: ${enRadio.slice(1).map(c => "punto " + (c.i + 1)).join(", ")}` : "") +
+        `<button type="button">Ver punto ${rec.i + 1}</button>`;
+    } else {
+      const m = Math.round(cerca[0].d/10)*10;
+      card.innerHTML = `<b>Caminá por los caminos azules</b>Los puntos de visualización aparecen cuando estás cerca. <span class="dist">El más próximo está a ${m} m.</span>`;
+    }
+    document.getElementById("rc-fuente").textContent = yo.sim ? motivo : "Usando tu ubicación";
+  }
+
+  // ubicación real; si no hay permiso o estás lejos del parque, se simula y podés arrastrar el punto azul
+  let vigia = null;
+  function ubicar(){
+    if (vigia !== null) return;
+    const simular = m => { yo.sim = true; motivo = m; pintarRecorrido(); };
+    simular("Ubicación simulada · arrastrá el punto azul");
+    if (!navigator.geolocation){ simular("Sin acceso a la ubicación · arrastrá el punto azul para simular"); return; }
+    try {
+      vigia = navigator.geolocation.watchPosition(pos => {
+        const x = (pos.coords.longitude - OBE.lng)*MLNG - PQ.centro[0], y = (pos.coords.latitude - OBE.lat)*MLAT - PQ.centro[1];
+        if (Math.hypot(x, y) > 800){ simular("Estás lejos del parque · ubicación simulada, arrastrá el punto azul"); return; }
+        const primera = yo.sim;
+        yo = {x, y, acc:pos.coords.accuracy || 0, sim:false};
+        if (primera){ vista.x = x; vista.y = y; }
+        pintarRecorrido();
+      }, () => simular("Sin permiso de ubicación · arrastrá el punto azul para simular"), {enableHighAccuracy:true, maximumAge:5000});
+    } catch(e){ simular("Sin acceso a la ubicación · arrastrá el punto azul para simular"); }
+  }
+
+  // mover (un dedo o mouse), zoom (dos dedos o rueda); en simulación el punto azul se arrastra
+  const toques = new Map(); let gesto = null;
+  rcSvg.addEventListener("pointerdown", e => {
+    rcSvg.setPointerCapture(e.pointerId); toques.set(e.pointerId, [e.offsetX, e.offsetY]);
+    const [yx, yy] = aPx(yo.x, yo.y);
+    if (toques.size === 1) gesto = {tipo: yo.sim && Math.hypot(e.offsetX - yx, e.offsetY - yy) < 30 ? "yo" : "mover", x:e.offsetX, y:e.offsetY, v:{...vista}};
+    else if (toques.size === 2){ const [a, b] = [...toques.values()]; gesto = {tipo:"zoom", d:Math.hypot(a[0]-b[0], a[1]-b[1]), c:aM((a[0]+b[0])/2, (a[1]+b[1])/2), v:{...vista}}; }
+    rcSvg.classList.add("arrastra");
+  });
+  rcSvg.addEventListener("pointermove", e => {
+    if (!toques.has(e.pointerId) || !gesto) return;
+    toques.set(e.pointerId, [e.offsetX, e.offsetY]);
+    if (gesto.tipo === "mover"){ vista.x = gesto.v.x - (e.offsetX - gesto.x)/vista.s; vista.y = gesto.v.y + (e.offsetY - gesto.y)/vista.s; }
+    else if (gesto.tipo === "yo"){ const [x, y] = aM(e.offsetX, e.offsetY); yo.x = x; yo.y = y; }
+    else if (gesto.tipo === "zoom" && toques.size === 2){
+      const [a, b] = [...toques.values()], s = Math.min(8, Math.max(.5, gesto.v.s*Math.hypot(a[0]-b[0], a[1]-b[1])/gesto.d));
+      vista.s = s; const m = aM((a[0]+b[0])/2, (a[1]+b[1])/2); vista.x += gesto.c[0] - m[0]; vista.y += gesto.c[1] - m[1];
+    }
+    pintarRecorrido();
+  });
+  const soltar = e => { toques.delete(e.pointerId); if (!toques.size){ gesto = null; rcSvg.classList.remove("arrastra"); }
+    else if (toques.size === 1){ const [p] = [...toques.values()]; gesto = {tipo:"mover", x:p[0], y:p[1], v:{...vista}}; } };
+  rcSvg.addEventListener("pointerup", soltar); rcSvg.addEventListener("pointercancel", soltar);
+  rcSvg.addEventListener("wheel", e => { e.preventDefault();
+    const c = aM(e.offsetX, e.offsetY); vista.s = Math.min(8, Math.max(.5, vista.s*Math.exp(-e.deltaY*0.0015)));
+    const m = aM(e.offsetX, e.offsetY); vista.x += c[0] - m[0]; vista.y += c[1] - m[1]; pintarRecorrido(); }, {passive:false});
+  document.getElementById("rc-centrar").addEventListener("click", () => { vista.x = yo.x; vista.y = yo.y; vista.s = Math.max(vista.s, 1.6); pintarRecorrido(); });
+
+
+  /* ---------- mapa: three.js y los datos se cargan la primera vez que entrás ---------- */
+  let mapaEstado = 0;
+  function cargarScript(src){ return new Promise((ok, mal) => { const t = document.createElement("script"); t.src = src; t.onload = ok; t.onerror = mal; document.head.appendChild(t); }); }
+  function cargarMapa(){
+    if (mapaEstado === 2){ window.__mapaActivar && window.__mapaActivar(); return; }
+    if (mapaEstado === 1) return;
+    mapaEstado = 1;
+    const T = "https://cdn.jsdelivr.net/npm/three@0.128.0/";
+    cargarScript(T + "build/three.min.js")
+      .then(() => Promise.all([cargarScript(T + "examples/js/controls/OrbitControls.js"), cargarScript(T + "examples/js/utils/BufferGeometryUtils.js"), cargarScript("mapa-data.js")]))
+      .then(() => cargarScript("mapa.js"))
+      .then(() => { mapaEstado = 2; const c = document.getElementById("mapa-cargando"); if (c) c.remove(); })
+      .catch(() => { mapaEstado = 0; document.getElementById("mapa-cargando").textContent = "no se pudo cargar el mapa"; });
+  }
+  document.querySelectorAll("#tabbar button[data-go]").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.go === "inicio"){ t0 = null; draw(); }
+    ir(b.dataset.go);
+  }));
+
+  /* ---------- celular o compu ---------- */
+  function fit(){
+    const desk = matchMedia("(min-width: 600px) and (pointer: fine)").matches;
+    document.body.classList.toggle("desk", desk);
+    if (desk){
+      const k = Math.min(1, (innerHeight - 60)/FH, (innerWidth - 60)/FW);
+      document.documentElement.style.setProperty("--k", k);
+    }
+    draw();
+    if (PANTALLAS[actual]) drawLista(actual);
+    if (actual === "recorrido") pintarRecorrido();
+
+  }
+  addEventListener("resize", fit);
+  fit();
+})();
+</script>
+</body>
+</html>
